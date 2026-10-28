@@ -12,6 +12,24 @@ class Course {
   int endMinutes;
 
   int get durationMinutes => endMinutes - startMinutes;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'day': day,
+      'startMinutes': startMinutes,
+      'endMinutes': endMinutes,
+    };
+  }
+
+  factory Course.fromJson(Map<String, dynamic> json) {
+    return Course(
+      name: json['name'] as String,
+      day: json['day'] as int,
+      startMinutes: json['startMinutes'] as int,
+      endMinutes: json['endMinutes'] as int,
+    );
+  }
 }
 
 /// Reads "HH:MM" and returns minutes since midnight, or null if invalid.
