@@ -1,121 +1,251 @@
 import 'package:flutter/material.dart';
 
+import 'course.dart';
+import 'course_screen.dart';
+import 'sample_data.dart';
+
 void main() {
-  runApp(const MyApp());
+  runApp(const ClassFlowApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ClassFlowApp extends StatelessWidget {
+  const ClassFlowApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'ClassFlow',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.teal),
+      home: const WeekScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class WeekScreen extends StatefulWidget {
+  const WeekScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<WeekScreen> createState() => _WeekScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _WeekScreenState extends State<WeekScreen> {
+  List<Course> courses = sampleCourses();
+  int selectedDay = 0;
 
-  void _incrementCounter() {
+  static const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  static const dayFullNames = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+  ];
+
+  List<Course> get dayCourses {
+    final list = courses.where((c) => c.day == selectedDay).toList();
+    list.sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    return list;
+  }
+
+  int get dayMinutes =>
+      dayCourses.fold(0, (sum, c) => sum + c.durationMinutes);
+
+  int get weekMinutes =>
+      courses.fold(0, (sum, c) => sum + c.durationMinutes);
+
+  Future<void> _openAddCourse() async {
+    final result = await Navigator.push<CourseScreenResult>(
+      context,
+      MaterialPageRoute(builder: (_) => const CourseScreen()),
+    );
+    if (result == null) return; // user cancelled
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      courses.add(result.course!);
+      selectedDay = result.course!.day; // jump to the day they added
+    });
+  }
+
+  Future<void> _openEditCourse(Course course) async {
+    final result = await Navigator.push<CourseScreenResult>(
+      context,
+      MaterialPageRoute(builder: (_) => CourseScreen(course: course)),
+    );
+    if (result == null) return; // user cancelled
+    if (result.deleted) {
+      setState(() => courses.remove(course));
+      return;
+    }
+    setState(() {
+      final i = courses.indexOf(course);
+      if (i != -1) courses[i] = result.course!;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('ClassFlow'),
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'This week',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text(
+                  formatDuration(weekMinutes),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.teal,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  for (int i = 0; i < dayNames.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(dayNames[i]),
+                        selected: selectedDay == i,
+                        onSelected: (_) => setState(() => selectedDay = i),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Text(
+                  dayFullNames[selectedDay],
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  formatDuration(dayMinutes),
+                  style: const TextStyle(
+                    color: Colors.teal,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: dayCourses.isEmpty
+                ? Center(
+              child: Text(
+                'No classes on ${dayFullNames[selectedDay]}',
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            )
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: dayCourses.length,
+              itemBuilder: (context, index) {
+                final course = dayCourses[index];
+                final clashing = clashNames(course, courses);
+                return CourseTile(
+                  course: course,
+                  clashesWith: clashing,
+                  onTap: () => _openEditCourse(course),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+        onPressed: _openAddCourse,
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class CourseTile extends StatelessWidget {
+  const CourseTile({
+    super.key,
+    required this.course,
+    required this.clashesWith,
+    required this.onTap,
+  });
+
+  final Course course;
+  final List<String> clashesWith;
+  final VoidCallback onTap;
+
+  bool get hasClash => clashesWith.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: hasClash ? Colors.red.shade50 : null,
+      shape: hasClash
+          ? RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Colors.red, width: 1.5),
+      )
+          : null,
+      child: ListTile(
+        title: Text(
+          course.name,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: hasClash ? Colors.red.shade900 : null,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${formatTime(course.startMinutes)} – ${formatTime(course.endMinutes)}'
+                  '  ·  ${formatDuration(course.durationMinutes)}',
+            ),
+            if (hasClash)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Clashes with ${clashesWith.join(', ')}',
+                  style: TextStyle(
+                    color: Colors.red.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        onTap: onTap,
+        trailing: const Icon(
+          Icons.edit_outlined,
+          size: 18,
+          color: Colors.grey,
+        ),
       ),
     );
   }
