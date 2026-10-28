@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'course.dart';
 import 'course_screen.dart';
 import 'sample_data.dart';
+import 'weather_chip.dart';
 
 void main() {
   runApp(const ClassFlowApp());
@@ -30,7 +34,8 @@ class WeekScreen extends StatefulWidget {
 }
 
 class _WeekScreenState extends State<WeekScreen> {
-  List<Course> courses = sampleCourses();
+  List<Course> courses = [];
+  bool loaded = false;
   int selectedDay = 0;
 
   static const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
@@ -41,6 +46,36 @@ class _WeekScreenState extends State<WeekScreen> {
     'Thursday',
     'Friday',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    start();
+  }
+
+  Future<void> start() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('courses');
+    List<Course> loadedCourses;
+    if (saved != null) {
+      final list = jsonDecode(saved) as List;
+      loadedCourses = list
+          .map((x) => Course.fromJson(x as Map<String, dynamic>))
+          .toList();
+    } else {
+      loadedCourses = sampleCourses();
+    }
+    setState(() {
+      courses = loadedCourses;
+      loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = courses.map((c) => c.toJson()).toList();
+    await prefs.setString('courses', jsonEncode(list));
+  }
 
   List<Course> get dayCourses {
     final list = courses.where((c) => c.day == selectedDay).toList();
@@ -64,6 +99,7 @@ class _WeekScreenState extends State<WeekScreen> {
       courses.add(result.course!);
       selectedDay = result.course!.day; // jump to the day they added
     });
+    await _save();
   }
 
   Future<void> _openEditCourse(Course course) async {
@@ -74,12 +110,14 @@ class _WeekScreenState extends State<WeekScreen> {
     if (result == null) return; // user cancelled
     if (result.deleted) {
       setState(() => courses.remove(course));
+      await _save();
       return;
     }
     setState(() {
       final i = courses.indexOf(course);
       if (i != -1) courses[i] = result.course!;
     });
+    await _save();
   }
 
   @override
@@ -92,6 +130,10 @@ class _WeekScreenState extends State<WeekScreen> {
       ),
       body: Column(
         children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: Center(child: WeatherChip()),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
@@ -154,8 +196,10 @@ class _WeekScreenState extends State<WeekScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: dayCourses.isEmpty
-                ? Center(
+            child: !loaded
+                ? const Center(child: CircularProgressIndicator())
+                : dayCourses.isEmpty
+                    ? Center(
               child: Text(
                 'No classes on ${dayFullNames[selectedDay]}',
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
@@ -177,12 +221,14 @@ class _WeekScreenState extends State<WeekScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: loaded
+          ? FloatingActionButton(
         onPressed: _openAddCourse,
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
-      ),
+      )
+          : null,
     );
   }
 }
