@@ -85,6 +85,7 @@ class _CourseScreenState extends State<CourseScreen> {
     }
 
     final result = Course(
+      id: widget.course?.id ?? '',
       name: name,
       day: day,
       startMinutes: start,
