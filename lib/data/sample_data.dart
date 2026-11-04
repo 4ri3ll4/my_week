@@ -1,9 +1,5 @@
-import 'course.dart';
+import '../models/course.dart';
 
-/// Sample timetable for the first run.
-/// Covers: a boundary case (Math ends 10:00, Physics starts 10:00 — no clash),
-/// a real clash (Chemistry 09:00–11:00 vs Biology 10:00–12:00 on Tuesday),
-/// and an empty day (Wednesday) for the "No classes on Wednesday" message.
 List<Course> sampleCourses() {
   return [
     Course(name: 'Math',      day: 0, startMinutes: 8 * 60,  endMinutes: 10 * 60),
