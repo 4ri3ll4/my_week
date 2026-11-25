@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,209 +9,271 @@ import '../state/course_state.dart';
 class CourseScreen extends StatefulWidget {
   const CourseScreen({super.key, this.course});
 
-    final Course? course;
+  final Course? course;
 
-    bool get isEditing => course != null;
+  bool get isEditing => course != null;
 
-    @override
-    State<CourseScreen> createState() => _CourseScreenState();
+  @override
+  State<CourseScreen> createState() => _CourseScreenState();
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-    final nameController = TextEditingController();
-    final startController = TextEditingController();
-    final endController = TextEditingController();
-    int day = 0;
+  final nameController = TextEditingController();
+  final startController = TextEditingController();
+  final endController = TextEditingController();
+  int day = 0;
 
-    static const dayFullNames = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            ];
+  File? _photo;
+  bool _saving = false;
 
-    @override
-    void initState() {
-        super.initState();
-        final c = widget.course;
-        if (c != null) {
-            nameController.text = c.name;
-            startController.text = formatTime(c.startMinutes);
-            endController.text = formatTime(c.endMinutes);
-            day = c.day;
-        }
+  static const dayFullNames = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.course;
+    if (c != null) {
+      nameController.text = c.name;
+      startController.text = formatTime(c.startMinutes);
+      endController.text = formatTime(c.endMinutes);
+      day = c.day;
     }
+  }
 
-    @override
-    void dispose() {
-        nameController.dispose();
-        startController.dispose();
-        endController.dispose();
-        super.dispose();
-    }
+  @override
+  void dispose() {
+    nameController.dispose();
+    startController.dispose();
+    endController.dispose();
+    super.dispose();
+  }
 
-    void save() {
-        final name = nameController.text.trim();
-        if (name.isEmpty) {
-            showError('Enter a course name');
-            return;
-        }
-
-        final start = parseTime(startController.text);
-        if (start == null) {
-            showError('Start time must be HH:MM, like 08:00');
-            return;
-        }
-
-        final end = parseTime(endController.text);
-        if (end == null) {
-            showError('End time must be HH:MM, like 10:00');
-            return;
-        }
-
-        if (end <= start) {
-            showError('End time must be after start time');
-            return;
-        }
-
-        final state = context.read<CourseState>();
-        final result = Course(
-                id: widget.course?.id ?? '',
-                name: name,
-                day: day,
-                startMinutes: start,
-                endMinutes: end,
+  Future<void> _pickPhoto(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1200,
+      imageQuality: 70,
     );
+    if (picked == null) return;
+    setState(() => _photo = File(picked.path));
+  }
 
-        if (widget.course == null) {
-            state.setDay(day);
-            state.add(result);
-        } else {
-            state.edit(widget.course!.id, result);
-        }
-        Navigator.pop(context);
+  Future<void> save() async {
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      showError('Enter a course name');
+      return;
     }
 
-    void delete() {
-        final state = context.read<CourseState>();
-        showDialog(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                title: const Text('Delete this course?'),
-                content: Text('"${widget.course?.name}" will be removed.'),
-                actions: [
-        TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
+    final start = parseTime(startController.text);
+    if (start == null) {
+      showError('Start time must be HH:MM, like 08:00');
+      return;
+    }
+
+    final end = parseTime(endController.text);
+    if (end == null) {
+      showError('End time must be HH:MM, like 10:00');
+      return;
+    }
+
+    if (end <= start) {
+      showError('End time must be after start time');
+      return;
+    }
+
+    final state = context.read<CourseState>();
+    setState(() => _saving = true);
+
+    try {
+      // 1. Upload photo if a new one was picked
+      String? photoUrl = widget.course?.photoUrl;
+      if (_photo != null) {
+        photoUrl = await state.uploadPhoto(_photo!);
+      }
+
+      // 2. Build the final Course object
+      final result = Course(
+        id: widget.course?.id ?? '',
+        name: name,
+        day: day,
+        startMinutes: start,
+        endMinutes: end,
+        photoUrl: photoUrl,
+      );
+
+      // 3. Save to Firestore
+      if (widget.course == null) {
+        state.setDay(day);
+        state.add(result);
+      } else {
+        state.edit(widget.course!.id, result);
+      }
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showError('Could not save: $e');
+      }
+    }
+  }
+
+  void delete() {
+    final state = context.read<CourseState>();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this course?'),
+        content: Text('"${widget.course?.name}" will be removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
           ),
-        FilledButton(
-                onPressed: () {
-            Navigator.pop(dialogContext);
-            state.remove(widget.course!);
-            Navigator.pop(context);
-        },
-        child: const Text('Delete'),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              state.remove(widget.course!);
+              Navigator.pop(context);
+            },
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
-    }
+  }
 
-    void showError(String message) {
-        ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(SnackBar(content: Text(message)));
-    }
+  void showError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
-    @override
-    Widget build(BuildContext context) {
-        final state = context.watch<CourseState>();
-        return Scaffold(
-                appBar: AppBar(
-                title: Text(widget.isEditing ? 'Edit course' : 'Add course'),
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                actions: [
-        if (widget.isEditing)
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<CourseState>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.isEditing ? 'Edit course' : 'Add course'),
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+        actions: [
+          if (widget.isEditing)
             IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete course',
-                onPressed: delete,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete course',
+              onPressed: _saving ? null : delete,
             ),
         ],
       ),
-        body: Form(
-                child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-        // Step 16 required: shows live weekly total from the brain.
-        Text(
-                'This week: ${formatDuration(state.weekMinutes)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      body: Form(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Step 16 required: shows live weekly total from the brain.
+            Text(
+              'This week: ${formatDuration(state.weekMinutes)}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
-        TextField(
-                controller: nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
                 labelText: 'Course name',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
-        DropdownButtonFormField<int>(
-                initialValue: day,
-                decoration: const InputDecoration(
+            DropdownButtonFormField<int>(
+              initialValue: day,
+              decoration: const InputDecoration(
                 labelText: 'Day',
                 border: OutlineInputBorder(),
               ),
-        items: [
-        for (int i = 0; i < dayFullNames.length; i++)
-            DropdownMenuItem(value: i, child: Text(dayFullNames[i])),
+              items: [
+                for (int i = 0; i < dayFullNames.length; i++)
+                  DropdownMenuItem(value: i, child: Text(dayFullNames[i])),
               ],
-        onChanged: (v) => setState(() => day = v ?? 0),
+              onChanged: (v) => setState(() => day = v ?? 0),
             ),
             const SizedBox(height: 16),
-        Row(
-                children: [
-        Expanded(
-                child: TextField(
-                controller: startController,
-                keyboardType: TextInputType.datetime,
-                decoration: const InputDecoration(
-                labelText: 'Start',
-                hintText: '08:00',
-                border: OutlineInputBorder(),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: startController,
+                    keyboardType: TextInputType.datetime,
+                    decoration: const InputDecoration(
+                      labelText: 'Start',
+                      hintText: '08:00',
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-        Expanded(
-                child: TextField(
-                controller: endController,
-                keyboardType: TextInputType.datetime,
-                decoration: const InputDecoration(
-                labelText: 'End',
-                hintText: '10:00',
-                border: OutlineInputBorder(),
+                Expanded(
+                  child: TextField(
+                    controller: endController,
+                    keyboardType: TextInputType.datetime,
+                    decoration: const InputDecoration(
+                      labelText: 'End',
+                      hintText: '10:00',
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-        FilledButton(
-                onPressed: save,
-                style: FilledButton.styleFrom(
+
+            // --- NEW PHOTO SECTION ---
+            if (_photo != null)
+              Image.file(_photo!, height: 150, fit: BoxFit.cover)
+            else if (widget.course?.photoUrl != null)
+              Image.network(widget.course!.photoUrl!, height: 150, fit: BoxFit.cover),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : () => _pickPhoto(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera),
+                    label: const Text('Camera'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : () => _pickPhoto(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Gallery'),
+                  ),
+                ),
+              ],
+            ),
+            // -------------------------
+
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _saving ? null : save,
+              style: FilledButton.styleFrom(
                 backgroundColor: Colors.teal,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-        child: const Text('Save'),
+              child: Text(_saving ? 'Saving...' : 'Save'),
             ),
           ],
         ),
       ),
     );
-    }
+  }
 }

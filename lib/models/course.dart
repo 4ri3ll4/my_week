@@ -7,6 +7,7 @@ class Course {
     required this.day,
     required this.startMinutes,
     required this.endMinutes,
+    this.photoUrl,
   });
 
   final String id;
@@ -14,6 +15,7 @@ class Course {
   int day;
   int startMinutes;
   int endMinutes;
+  final String? photoUrl;
 
   int get durationMinutes => endMinutes - startMinutes;
 
@@ -22,6 +24,7 @@ class Course {
     'day': day,
     'startMinutes': startMinutes,
     'endMinutes': endMinutes,
+    'photoUrl': photoUrl,
   };
 
   factory Course.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -32,6 +35,7 @@ class Course {
       day: data['day'] as int,
       startMinutes: data['startMinutes'] as int,
       endMinutes: data['endMinutes'] as int,
+      photoUrl: data['photoUrl'] as String?,
     );
   }
 }

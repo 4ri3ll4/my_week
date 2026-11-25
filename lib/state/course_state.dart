@@ -1,12 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../models/course.dart';
 import '../repositories/course_repository.dart';
+import '../repositories/photo_repository.dart';
 
 class CourseState extends ChangeNotifier {
-    CourseState(this._repo) {
+    CourseState(this._repo, this._photos) {
         _subscription = _repo.watchAll().listen(
                 (list) {
                         _courses = list;
@@ -23,6 +25,7 @@ class CourseState extends ChangeNotifier {
     }
 
     final CourseRepository _repo;
+    final PhotoRepository _photos;
     StreamSubscription<List<Course>>? _subscription;
 
     // Private data: only the brain can change it.
@@ -73,6 +76,7 @@ class CourseState extends ChangeNotifier {
     Future<void> add(Course course) => _repo.add(course);
     Future<void> edit(String id, Course course) => _repo.update(id, course);
     Future<void> remove(Course course) => _repo.delete(course.id);
+    Future<String> uploadPhoto(File photo) => _photos.upload(photo);
 
     @override
     void dispose() {

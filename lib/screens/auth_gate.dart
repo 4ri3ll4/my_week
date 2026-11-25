@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../repositories/course_repository.dart';
 import '../state/course_state.dart';
+import '../repositories/photo_repository.dart';
 import 'login_screen.dart';
 import 'week_screen.dart';
 
@@ -25,7 +26,7 @@ class AuthGate extends StatelessWidget {
                 return const LoginScreen();
             }
             return ChangeNotifierProvider<CourseState>(
-                    create: (_) => CourseState(CourseRepository(user.uid)),
+                    create: (_) => CourseState(CourseRepository(user.uid), PhotoRepository()),
                     child: const WeekScreen(),
         );
         },
